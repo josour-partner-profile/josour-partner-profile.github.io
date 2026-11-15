@@ -243,7 +243,32 @@ table.pt{width:100%;border-collapse:collapse;font-size:13.5px}
   .lsz{display:none}
   .legend{padding:6px 10px;gap:10px}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* Motion */
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes popin{0%{opacity:0;transform:scale(0)}70%{opacity:1;transform:scale(1.18)}100%{opacity:1;transform:scale(1)}}
+@keyframes ring{0%{opacity:.55;transform:scale(1)}100%{opacity:0;transform:scale(2.4)}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.pin circle,.pin text{transform-box:fill-box;transform-origin:center}
+.pin.in circle.dot,.pin.in text{animation:popin .55s cubic-bezier(.2,.8,.3,1) both;animation-delay:var(--d,0ms)}
+.pin circle.ring{fill:none;stroke:var(--accent);opacity:0;pointer-events:none}
+.pin.sel circle.ring{animation:ring 1.6s ease-out infinite}
+.pin circle.dot{transition:filter .2s}
+.pin:hover circle.dot{filter:brightness(1.12) drop-shadow(0 1px 3px rgba(0,0,0,.35))}
+.app.home .hm>*,.app.home .pcard{animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+.app.home .hm>*:nth-child(2){animation-delay:.08s}.app.home .hm>*:nth-child(3){animation-delay:.16s}
+.app.home .pcard:nth-child(1){animation-delay:.24s}.app.home .pcard:nth-child(2){animation-delay:.34s}
+.app.offices .off>*{animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+.app.offices .off>*:nth-child(2){animation-delay:.1s}
+.app.offices .ocard{animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+.app.offices .ocard:nth-of-type(1){animation-delay:.2s}.app.offices .ocard:nth-of-type(2){animation-delay:.3s}.app.offices .ocard:nth-of-type(3){animation-delay:.4s}
+.app.list .tablewrap{animation:fadein .35s ease both}
+#tbody tr{animation:rise .4s ease both}
+#tbody tr:nth-child(-n+30){animation-delay:calc(var(--i,0)*18ms)}
+.app:not(.home):not(.offices):not(.list) .mapwrap{animation:fadein .4s ease both}
+.hm .cta button{transition:transform .15s,box-shadow .15s,background .15s}
+.hm .cta button:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(192,0,0,.18)}
+.view{transition:background .2s,color .2s}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
 <div class="app">
@@ -384,20 +409,25 @@ var render=function(){
   sel.exit().remove();
   const en=sel.enter().append('g').attr('class','pin').attr('tabindex',0).attr('role','button')
     .on('click',(e,d)=>openPin(d.key)).on('keydown',(e,d)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPin(d.key)}});
-  en.append('circle').attr('class','dot');en.append('text').attr('class','cnt');en.append('text').attr('class','lbl');
+  en.classed('in',true).style('--d',(d,i)=>Math.min(i,60)*14+'ms').on('animationend',function(e){if(e.target.classList.contains('dot'))this.classList.remove('in')});
+  en.append('circle').attr('class','ring');en.append('circle').attr('class','dot');en.append('text').attr('class','cnt');en.append('text').attr('class','lbl');
   const all=en.merge(sel);
   all.attr('aria-label',d=>`${d.name}, ${d.k}: ${d.items.length} project${d.items.length>1?'s':''}`)
     .sort((a,b)=>b.items.length-a.items.length);
   draw();
   const n=P.filter(keep);
-  d3.select('#sP').text(n.length);d3.select('#sC').text(ps.length);d3.select('#sK').text(new Set(n.map(p=>p.k)).size);
+  countTo('#sP',n.length);countTo('#sC',ps.length);countTo('#sK',new Set(n.map(p=>p.k)).size);
   overview();if(selected&&!ps.find(p=>p.key===selected))closePop();else if(selected)openPin(selected);
 }
+function countTo(sel,v){const el=d3.select(sel),from=+el.text()||0;if(from===v)return;
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){el.text(v);return}
+  el.interrupt().transition().duration(from?500:1400).ease(d3.easeCubicOut).tween('text',()=>{const i=d3.interpolateRound(from,v);return t=>el.text(i(t))})}
 function draw(){
   gP.selectAll('g.pin').each(function(d){
     const [x,y]=proj([d.lo,d.la]);const r=(7+Math.sqrt(d.items.length)*4)/k;
     const s=d3.select(this).attr('transform',`translate(${x},${y})`).classed('sel',d.key===selected);
-    s.select('circle').attr('r',r).attr('fill',d.k==='Saudi Arabia'?'var(--accent)':'var(--pin-other)').attr('stroke-width',(d.key===selected?2.5:1.5)/k).attr('fill-opacity',.92);
+    s.select('circle.ring').attr('r',r).attr('stroke-width',2/k);
+    s.select('circle.dot').attr('r',r).attr('fill',d.k==='Saudi Arabia'?'var(--accent)':'var(--pin-other)').attr('stroke-width',(d.key===selected?2.5:1.5)/k).attr('fill-opacity',.92);
     s.select('.cnt').attr('font-size',11/k).text(d.items.length>1?d.items.length:'').style('fill',d.k==='Saudi Arabia'?'#fff':'var(--surface)');
     s.select('.lbl').attr('x',r+3/k).attr('font-size',11.5/k).attr('stroke-width',3/k).text(k>2.2||d.items.length>=5?d.name:'');
   });
@@ -513,11 +543,11 @@ function renderTable(){
   const r=listRows();
   document.getElementById('tcount').textContent=`${r.length} project${r.length===1?'':'s'}`;
   document.getElementById('tempty').hidden=r.length>0;
-  tbody.innerHTML=r.map(p=>{
+  tbody.innerHTML=r.map((p,ix)=>{
     const key=esc(p.p+'|'+p.k),col=p.k==='Saudi Arabia'?'var(--accent)':'var(--pin-other)';
     const city=p.c==='not stated'?'City not stated':p.c;
     const ph=p.ph.length?`<button data-key="${key}" data-id="${p.id}" aria-label="Show ${esc(p.n)} on the map"><img src="${IMG[p.ph[0][0]]}" alt="">${p.ph.length>1?`<b>${p.ph.length}</b>`:''}</button>`:'<span class="nop">—</span>';
-    return `<tr><td class="num">${p.id}</td><td class="pcell"><div class="pname">${esc(p.n)}</div><span class="ptype">${esc(p.t)}</span></td>
+    return `<tr style="--i:${ix}"><td class="num">${p.id}</td><td class="pcell"><div class="pname">${esc(p.n)}</div><span class="ptype">${esc(p.t)}</span></td>
     <td class="loc"><span class="sw" style="background:${col}"></span>${esc(city)}<span class="sub">${esc(p.k)}</span></td>
     <td class="team">${esc(p.w.replace(/;\s*/g,', '))}</td><td class="role">${esc(p.r)}</td><td class="per">${esc(p.y||'—')}</td>
     <td class="phc">${ph}</td><td class="act"><button class="onmap" data-key="${key}" data-id="${p.id}">Show on map</button></td></tr>`}).join('');
